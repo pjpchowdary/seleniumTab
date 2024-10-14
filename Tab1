@@ -1,0 +1,44 @@
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+
+public class ServiceNowNotesTab {
+    public static void main(String[] args) {
+        System.setProperty("webdriver.chrome.driver", "path/to/chromedriver");
+        WebDriver driver = new ChromeDriver();
+
+        try {
+            // Navigate to ServiceNow Incident page
+            driver.get("https://your-instance.service-now.com/incident.do");
+
+            // Log in if necessary (add your login code here)
+
+            // Wait for the iframe to be available and switch to it
+            WebDriverWait wait = new WebDriverWait(driver, 10);
+            wait.until(ExpectedConditions.frameToBeAvailableAndSwitchToIt(By.id("your-iframe-id"))); // Change to your iframe's ID or locator
+
+            // Now, access the shadow root element
+            WebElement shadowHost = driver.findElement(By.cssSelector("your-shadow-host-selector")); // Change to your shadow host selector
+
+            // Use JavaScript to access the shadow DOM
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            WebElement shadowRoot = (WebElement) js.executeScript("return arguments[0].shadowRoot", shadowHost);
+
+            // Now, find the "Notes" tab inside the shadow DOM
+            WebElement notesTab = shadowRoot.findElement(By.xpath("//div[contains(@class, 'tab') and text()='Notes']"));
+
+            // Click on the "Notes" tab
+            notesTab.click();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // Close the browser
+            driver.quit();
+        }
+    }
+}
