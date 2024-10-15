@@ -1,0 +1,67 @@
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+private static void takeFullPageScreenshot(WebDriver driver, String fileName) throws IOException {
+    // Scroll to the top of the page
+    ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
+
+    // Get the total height of the page
+    Long totalHeight = (Long) ((JavascriptExecutor) driver).executeScript(
+        "return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);"
+    );
+    
+    // Get the window height
+    Long windowHeight = (Long) ((JavascriptExecutor) driver).executeScript("return window.innerHeight");
+    
+    int scrollHeight = windowHeight.intValue();
+    List<BufferedImage> images = new ArrayList<>();
+
+    while (true) {
+        // Take screenshot of current viewport
+        File screenshot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+        BufferedImage image = ImageIO.read(screenshot);
+        images.add(image);
+
+        // Scroll down
+        ((JavascriptExecutor) driver).executeScript("window.scrollBy(0, " + scrollHeight + ");");
+
+        // Wait for page to load after scrolling
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        // Check if we've reached the bottom of the page
+        Long currentScrollPosition = (Long) ((JavascriptExecutor) driver).executeScript(
+            "return window.pageYOffset + window.innerHeight;"
+        );
+        if (currentScrollPosition.intValue() >= totalHeight.intValue()) {
+            break;
+        }
+    }
+
+    // Combine images
+    int totalWidth = images.get(0).getWidth();
+    int totalHeight = images.stream().mapToInt(BufferedImage::getHeight).sum();
+
+    BufferedImage combined = new BufferedImage(totalWidth, totalHeight, BufferedImage.TYPE_INT_RGB);
+    Graphics g = combined.getGraphics();
+
+    int heightCursor = 0;
+    for (BufferedImage image : images) {
+        g.drawImage(image, 0, heightCursor, null);
+        heightCursor += image.getHeight();
+    }
+    g.dispose();
+
+    // Save the combined image
+    File destFile = new File(SCREENSHOT_FOLDER + File.separator + fileName + ".png");
+    ImageIO.write(combined, "png", destFile);
+    System.out.println("Full page screenshot saved: " + destFile.getAbsolutePath());
+}
