@@ -1,0 +1,98 @@
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Base64;
+
+public class ServiceNowIncidentDownloader {
+
+    private static final String INSTANCE_URL = "https://your-company.service-now.com"; // Verify this URL
+    private static final String API_ENDPOINT = "/api/now/table/incident";
+    private static final String USERNAME = "your-username";
+    private static final String PASSWORD = "your-password";
+
+    // Proxy settings
+    private static final String PROXY_HOST = "proxy.your-company.com"; // Replace with your proxy host
+    private static final int PROXY_PORT = 8080; // Replace with your proxy port
+
+    public static void main(String[] args) {
+        // Set proxy settings
+        setProxySettings();
+
+        try {
+            String incidents = getMajorIncidents2024();
+            if (incidents != null) {
+                saveIncidentsToFile(incidents);
+            }
+        } catch (Exception e) {
+            System.err.println("Error in main method: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private static void setProxySettings() {
+        System.setProperty("http.proxyHost", PROXY_HOST);
+        System.setProperty("http.proxyPort", String.valueOf(PROXY_PORT));
+        System.setProperty("https.proxyHost", PROXY_HOST);
+        System.setProperty("https.proxyPort", String.valueOf(PROXY_PORT));
+        
+        System.out.println("Proxy settings applied: " + PROXY_HOST + ":" + PROXY_PORT);
+    }
+
+    private static String getMajorIncidents2024() throws Exception {
+        String query = "priority=1^opened_atONThis year@javascript:gs.beginningOfThisYear()@javascript:gs.endOfThisYear()";
+        String fields = "number,short_description,priority,opened_at,closed_at,state";
+        String urlStr = INSTANCE_URL + API_ENDPOINT + "?sysparm_query=" + query + "&sysparm_fields=" + fields + "&sysparm_display_value=true";
+        
+        System.out.println("Attempting to connect to: " + urlStr);
+        
+        try {
+            URL url = new URL(urlStr);
+            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(PROXY_HOST, PROXY_PORT));
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection(proxy);
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            
+            // Basic Authentication
+            String auth = USERNAME + ":" + PASSWORD;
+            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+            conn.setRequestProperty("Authorization", "Basic " + encodedAuth);
+
+            System.out.println("Response Code: " + conn.getResponseCode());
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+            String output;
+            StringBuilder response = new StringBuilder();
+            while ((output = br.readLine()) != null) {
+                response.append(output);
+            }
+
+            conn.disconnect();
+
+            System.out.println("Received response from ServiceNow");
+            return response.toString();
+        } catch (UnknownHostException e) {
+            System.err.println("UnknownHostException: Unable to resolve host '" + INSTANCE_URL + "'");
+            System.err.println("Please check your internet connection and verify the INSTANCE_URL.");
+            e.printStackTrace();
+            return null;
+        } catch (Exception e) {
+            System.err.println("Exception occurred while connecting to ServiceNow: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private static void saveIncidentsToFile(String incidents) throws Exception {
+        String fileName = "major_incidents_" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".json";
+        Files.write(Paths.get(fileName), incidents.getBytes());
+        System.out.println("Incidents saved to " + fileName);
+    }
+}
